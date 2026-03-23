@@ -22,8 +22,10 @@ git clone ???
 chmod 755 *
 
 ## Run
-### Step 0 make input file
-
+### Step 0. make input file
+Before running rmdup, three input files are required:
+genome index file (.fai), Minimap2 self-alignment file (.paf), and BUSCO result file (full_table.tsv).
+The following commands can be used to generate these three files.
 #### genome index file
 ```
 samtools faidx $assembly
@@ -37,11 +39,11 @@ minimap2 -xasm5 -DP -t 48 $assembly $assembly | gzip -c - > $assembly.paf.gz
 #### busco
 
 ```
-busco -i {fp} -l endopterygota_odb10 -o {fp}_busco -m genome --offline -c 36
+busco -i $assembly -l $odb -o $assembly_busco -m genome -c 36
 ```
 
-### Step 1 Preprocessing
-
+### Step 1. Preprocessing
+In Step 0, the three prepared input files are used to run rmdup_prepare.
 ```
 ./rmdup_prepare -fai {index file} -b {full_table.tsv} -m {selfalign.paf.gz} -p {output prefix}
 Option:
@@ -53,7 +55,17 @@ Option:
  -h, --help             This message.
 ```
 
-### Step 2 Identify duplicated site
+#### run example command
+```
+./rmdup_prepare -fai test.fasta.fai -b full_table.tsv -m test.fasta.paf.gz
+```
+#### output format
+##### rm_dup.sorted.paf
+
+##### rm_dup_sorted_full_busco.tsv
+##### sorted_filtered_judaica.fasta.fai
+
+### Step 2. Identify duplicated site
 
 ```
 ./rmdup_main -sm {sorted.paf} -sb {sorted_full_busco.tsv} -sfai {sorted.fai} -p {prefix}
@@ -74,7 +86,7 @@ Option:
 ```
 
 
-### Step 3 Identify keep site
+### Step 3. Identify keep site
 
 ```
 rmdup_makebed -i temp.bed [-p prefix]
