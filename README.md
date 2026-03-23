@@ -1,6 +1,7 @@
 # rm_dup
 Removal of haplotypic and redundant contigs using alignment and gene-based information
 
+
 ## Dependency
 Python 3.x.x
 
@@ -13,13 +14,14 @@ External tools:
 - seqkit
 
 
-
 ## Overview
 RMdup identifies and removes duplicated contigs from draft genome assemblies by integrating self-alignment and BUSCO gene annotations.
+
 
 ## Installation
 git clone ???
 chmod 755 *
+
 
 ## Run
 ### Step 0. make input file
@@ -41,6 +43,7 @@ busco -i $assembly -l $odb -o $assembly_busco -m genome -c 36
 ```
 minimap2 -xasm5 -DP -t 48 $assembly $assembly | gzip -c - > $assembly.paf.gz
 ```
+
 
 ### Step 1. Preprocessing
 In Step 0, the three prepared input files are used to run rmdup_prepare.
@@ -119,6 +122,7 @@ ptg000002l      27859520        27891898        ptg000021l      5442    27500   
 
 ```
 
+
 ### Step 2. Identify duplicated site
 
 ```
@@ -138,9 +142,14 @@ Option:
 
 
 ```
+
+### run command
+```
+./rmdup_mainV4 -sm ../1.rmdup_prepare/*.sorted.paf -sb ../1.rmdup_prepare/*_sorted_full_busco.tsv -sfai ../1.rmdup_prepare/sorted*.fai -p sample2 -t2 10 -r 30
+```
+
 #### output 
 rm_dup.temp.bed
-
 busco based: haplotig, overlap, unique, issubset, repeat
 minimap2 based: minimap2
 
@@ -166,6 +175,7 @@ ptg000008l      216839at3193    107555  162673  type1   type1_unique
 
 ```
 
+
 ### Step 3. Identify keep site
 
 ```
@@ -177,6 +187,34 @@ Option:
                       [default output: rm_sup_{input_basename}]
  -v, --version         show version
  -h, --help            This message
+
+```
+
+#### run command
+```
+./rmdup_bedV4 -i ../2.rmdup_main/rm_dup.temp.bed
+```
+
+#### output
+rm_dup_rm_dup.temp.bed
+type1_haplotig
+type1_issubset
+type1_minimap2
+type1_repeat
+type2_issubset
+type2_minimap2
+type2_overlap
+type2_repeat
+
+```
+ptg000001l      0       53626692        type2_issubset
+ptg000003l      0       19408224        type1_issubset
+ptg000003l      0       19408224        type1_issubset
+ptg000007l      0       29832611        type2_issubset
+ptg000008l      86      29012907        type1_minimap2
+ptg000008l      61131   75070   type1_haplotig
+ptg000008l      204945  27314041        type1_haplotig
+ptg000009l      0       9416874 type1_issubset
 
 ```
 
@@ -194,6 +232,30 @@ Option:
  -p, --prefix STR       output prefix [default: rm_dup].
  -v, --version          show version.
  -h, --help             This message.
+```
+
+#### run command
+```
+./rmdup_getseq -tB ../3.rmdup_keepbed/rm_dup_rm_dup.temp.bed -g ../1.rmdup_prepare/filtered.fasta -fai ../1.rmdup_prepare/filtered.fasta.fai
+```
+
+#### output
+
+-rw-rw-r-- 1 ahchoi123 ahchoi123 432M Mar 23 20:50 rm_dup_rm_dup_50000.fa
+-rw-rw-r-- 1 ahchoi123 ahchoi123 427M Mar 23 20:50 rm_dup_rm_dup.fa
+-rw-rw-r-- 1 ahchoi123 ahchoi123 2.8K Mar 23 20:49 rm_dup_rename.bed
+
+```
+ptg000002l      0       70232259        ptg000002l_1
+ptg000004l      0       53872932        ptg000004l_1
+ptg000005l      0       40121122        ptg000005l_1
+ptg000006l      0       59361535        ptg000006l_1
+ptg000008l      0       86      ptg000008l_1
+ptg000008l      29012907        29014243        ptg000008l_2
+ptg000010l      0       37642125        ptg000010l_1
+ptg000011l      0       64666834        ptg000011l_1
+ptg000013l      0       9       ptg000013l_1
+
 ```
 
 
