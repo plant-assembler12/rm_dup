@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+
+import os, sys
+import argparse
+
+__version__ = "1.0"
+
+
+def minimap2_result(simple_cov_paf,equal_cov, type1_cov, type2_cov):
+	TYPE1 = set()
+	TYPE2 = set()
+	EQUAL = set()
+	with open(simple_cov_paf,"r") as lines:
+		for line in lines:
+			#0qname 1qstart 2qend 3sname 4sstart 5send 6qcov 7scov 8pseudo_duplicate
+			temp = line.split("\t")	
+			qname = temp[0]
+			sname = temp[3]
+
+			qstart = int(temp[1])
+			qend = int(temp[2])
+
+			sstart = int(temp[4])
+			send = int(temp[5])
+
+
+			qcov = float(temp[6])
+			scov = float(temp[7])
+			maxcov = max(qcov, scov)
+				
+			pseudo_duplicate = temp[8].replace("\n","")
+
+		
+
+			if pseudo_duplicate == "equal" and maxcov >= equal_cov:
+				equal1 = f"{qname}_{qstart}_{qend}_{qcov}"
+				equal2 = f"{sname}_{sstart}_{send}_{scov}"
+				if (equal1,equal2) not in EQUAL:
+					EQUAL.add((equal1,equal2))
+				continue
+
+			# cov>=70%.. type1 & equal
+			if maxcov >= type1_cov:
+				#user will remove the minor which is duplicated contig
+				if qname == pseudo_duplicate:
+					minor=f"{qname}_{qstart}_{qend}_{qcov}"
+					major=f"{sname}_{sstart}_{send}_{scov}"
+					if (major, minor) not in TYPE1:
+						TYPE1.add((major,minor))
+
+				elif sname == pseudo_duplicate:
+					minor=f"{sname}_{sstart}_{send}_{scov}"
+					major=f"{qname}_{qstart}_{qend}_{qcov}"
+					if (major, minor) not in TYPE1:
+						TYPE1.add((major,minor))
+				else:
+					pass
+					
+			# 70 > cov >=30.. type2 & equal
+			elif type1_cov > maxcov >= type2_cov:
+
+				if qname == pseudo_duplicate:
+					minor=f"{qname}_{qstart}_{qend}_{qcov}"
+					major=f"{sname}_{sstart}_{send}_{scov}"
+					if (major, minor) not in TYPE2:
+						TYPE2.add((major,minor))
+				elif sname == pseudo_duplicate:
+					minor=f"{sname}_{sstart}_{send}_{scov}"
+					major=f"{qname}_{qstart}_{qend}_{qcov}"
+					if (major, minor) not in TYPE2:
+						TYPE2.add((major,minor))
+				else:
+					pass
+#	print("EQUAL list : ",EQUAL)
+	return TYPE1, TYPE2, EQUAL
+
+def busco_result(parsed_busco, haplo_list, overlap_list,equal_list,repeat_cov, fai,prefix):
+
+	fai_dict = {}
+	with open(fai,"r") as lines:
+		for line in lines:
+			temp = line.replace("\n","").split("\t")
+			Cname = temp[0]
+			length = temp[1]
+
+			fai_dict[Cname] = int(length)
+
+
+
+#h1tg000021l: ['98952at3193']
+	unique_busco_dict = {}
+
+#h1tg000021l: ['98952at3193', '8828at3193', '20942at3193']
+	Total_busco_dict = {}
+
+#ex Total_busco_pos
+# h1tg000007l_54811at3193 : ('76355','90281')
+	Total_busco_pos = {}
+
+#busco_by_contig[Cname].append((Bgene, Bgene_start, Bgene_end, Bgene_state))
+	busco_by_contig = {}
+
+	
+	with open(parsed_busco,"r") as lines:
+		for line in lines:
+			temp = line.split("\t")
+			Cname = temp[0]
+			Bgene = temp[1]
+			Bgene_start = temp[2]
+			Bgene_end = temp[3]
+			Bgene_state = temp[4].replace("\n","")
+			
+			pos_key = f"{Cname}_{Bgene}"
+			Total_busco_pos[pos_key] = (Bgene_start,Bgene_end)
+			
+			if Cname not in busco_by_contig:
+				busco_by_contig[Cname] = []
+			busco_by_contig[Cname].append((Bgene, Bgene_start, Bgene_end, Bgene_state))
+
+			if Cname not in Total_busco_dict:
+				Total_busco_dict[Cname] = []
+			Total_busco_dict[Cname].append(Bgene)
+			
+
+			if "Complete" == Bgene_state:
+				if Cname not in unique_busco_dict:
+					unique_busco_dict[Cname] = []
+				unique_busco_dict[Cname].append(Bgene)
+
+
+
+########Type0 Equal
+	temp_bed_out = f"{prefix}.temp.bed"			
+	
+	
+	with open(temp_bed_out, "w") as SAVE:
+
+		for equal1, equal2 in equal_list:
+			e1 = equal1.split("_")
+			e2 = equal2.split("_")
+
+			c1 = e1[0]
+			c1st = int(e1[1])
+			c1ed = int(e1[2])
+			c1_cov = float(e1[3])
+
+			c2 = e2[0]
+			c2st = int(e2[1])
+			c2ed = int(e2[2])
+			c2_cov = float(e2[3])
+
+
+			if c1 not in Total_busco_dict and c2 in Total_busco_dict:
+				if c1_cov > repeat_cov:
+					#busco
+					minor_name = c1
+					mnst = 0
+					mned = fai_dict[minor_name]
+				
+					minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_repeat\n"
+					SAVE.write(minimap_cut)
+				else:
+					continue
+
+				
+			elif c2 not in Total_busco_dict and c1 in Total_busco_dict:
+				if c2_cov > repeat_cov:
+
+					#busco
+					minor_name = c2
+					mnst = 0
+					mned = fai_dict[minor_name]
+
+					minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_repeat\n"
+					SAVE.write(minimap_cut)
+				else:
+					continue
+				
+			elif c1 in Total_busco_dict and c2 in Total_busco_dict:
+				c1_set = set(Total_busco_dict[c1])
+				c2_set = set(Total_busco_dict[c2])	
+				
+				if c1_set.issubset(c2_set):
+					minor_name = c1
+					mnst = 0
+					mned = fai_dict[minor_name]
+					minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_issubset\n"
+					SAVE.write(minimap_cut)
+				elif c2_set.issubset(c1_set):
+					minor_name = c2
+					mnst = 0
+					mned = fai_dict[minor_name]
+					minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_issubset\n"
+					SAVE.write(minimap_cut)
+				else:
+							
+
+					#length
+					if fai_dict[c1] > fai_dict[c2]:
+						minor_name = c2
+						mnst = c2st
+						mned = c2ed
+
+						minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_minimap2\n"
+						SAVE.write(minimap_cut)
+
+					elif fai_dict[c1] < fai_dict[c2]:
+						minor_name = c1
+						mnst = c1st
+						mned = c1ed
+
+						minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_minimap2\n"
+						SAVE.write(minimap_cut)
+					else:
+					#random remove
+						minor_name = c1
+
+						mnst = c1st
+						mned = c1ed
+						minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_minimap2\n"
+
+						SAVE.write(minimap_cut)
+
+				
+			else:
+			#c1_cov=c2_cov so ranom remove
+				if c1_cov > repeat_cov:
+					minor_name = c1
+					mnst = 0
+					mned = fai_dict[minor_name]
+					minimap_cut = f"{minor_name}\ttemp\t{mnst}\t{mned}\ttype0\ttype0_repeat\n"
+					SAVE.write(minimap_cut)
+					
+					continue
+			
+
+
+########TYPE1 haplotig
+#ex.TYPE1 list = (major,minor)
+
+#	with open("temp.bed","w") as SAVE:
+	with open(temp_bed_out,"a") as SAVE:
+		for major, minor in haplo_list:
+			mjtemp = major.split("_")
+			mntemp = minor.split ("_")
+
+			mjname = mjtemp[0]
+			mjst = int(mjtemp[1])
+			mjed = int(mjtemp[2])
+			mjcov = float(mjtemp[3])
+
+			mnname = mntemp[0]
+			mnst = int(mntemp[1])
+			mned = int(mntemp[2])
+			mncov = float(mntemp[3])			
+
+			if mnname not in Total_busco_dict and mjname in Total_busco_dict:
+				if mncov > repeat_cov:
+					mnst = 0
+					mned = fai_dict[mnname]
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype1\ttype1_repeat\n"	
+					SAVE.write(minimap_cut)
+			elif mnname in Total_busco_dict and mjname not in Total_busco_dict:
+				minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype1\ttype1_minimap2\n"
+				SAVE.write(minimap_cut)
+				
+
+			elif mnname not in Total_busco_dict and mjname not in Total_busco_dict:
+				if mncov > repeat_cov:
+					mnst = 0
+					mned = fai_dict[mnname]
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype1\ttype1_repeat\n"
+					SAVE.write(minimap_cut)				
+				
+			else:	
+				major_set = set(Total_busco_dict[mjname])
+				minor_set = set(Total_busco_dict[mnname])
+
+				if minor_set.issubset(major_set):
+					mnst = 0
+					mned = fai_dict[mnname]
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype1\ttype1_issubset\n"
+					SAVE.write(minimap_cut)	
+						
+				
+				else:
+	
+
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype1\ttype1_minimap2\n"
+					SAVE.write(minimap_cut)
+
+					minor_differ = minor_set.difference(major_set)
+					minor_common = minor_set.intersection(major_set)
+					
+
+					for (sorted_Bname, st, ed, state) in busco_by_contig.get(mnname, []):
+						line_core = f"{mnname}\t{sorted_Bname}\t{st}\t{ed}\ttype1"
+						if sorted_Bname in minor_differ:
+							SAVE.write(f"{line_core}\ttype1_unique\n")
+						elif sorted_Bname in minor_common:
+							SAVE.write(f"{line_core}\ttype1_haplotig\n")
+						else:
+							SAVE.write(f"{line_core}\tnone\n")
+					
+
+
+#########TYPE2 overlap
+#ex.TYPE2 list = ({major=name}_{major=start}_{major=end}, {minor=name}_{minor=start}_{minor=end})
+	with open(temp_bed_out,"a") as SAVE:
+		for major, minor in overlap_list:
+			mjtemp = major.split("_")
+			mntemp = minor.split ("_")
+
+			mjname = mjtemp[0]
+			mjst = int(mjtemp[1])
+			mjed = int(mjtemp[2])
+			mjcov = float(mjtemp[3])
+
+			mnname = mntemp[0]
+			mnst = int(mntemp[1])
+			mned = int(mntemp[2])
+			mncov = float(mntemp[3])
+
+			if mnname not in Total_busco_dict and mjname in Total_busco_dict:
+				if mncov > repeat_cov:
+					mnst = 0
+					mned = fai_dict[mnname]
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype2\ttype2_repeat\n"
+					SAVE.write(minimap_cut)
+			
+
+			elif mnname in Total_busco_dict and mjname not in Total_busco_dict:
+				minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype2\ttype2_minimap2\n"
+				SAVE.write(minimap_cut)
+
+			elif mnname not in Total_busco_dict and mjname not in Total_busco_dict:
+				if mncov > repeat_cov:
+					mnst = 0
+					mned = fai_dict[mnname]
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype2\ttype2_repeat\n"
+					SAVE.write(minimap_cut)			
+			
+
+			else:
+				major_set = set(Total_busco_dict[mjname])
+				minor_set = set(Total_busco_dict[mnname])
+
+			
+				if minor_set.issubset(major_set):
+					mnst = 0
+					mned = fai_dict[mnname]
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype2\ttype2_issubset\n"	
+					SAVE.write(minimap_cut)
+
+				else:
+					minimap_cut = f"{mnname}\ttemp\t{mnst}\t{mned}\ttype2\ttype2_minimap2\n"
+					SAVE.write(minimap_cut)
+							
+					minor_differ = minor_set.difference(major_set)
+					minor_common = minor_set.intersection(major_set)
+
+
+					for (sorted_Bname, st, ed, state) in busco_by_contig.get(mnname, []):
+						line_core = f"{mnname}\t{sorted_Bname}\t{st}\t{ed}\ttype2"
+						if sorted_Bname in minor_differ:
+							SAVE.write(f"{line_core}\ttype2_unique\n")
+						elif sorted_Bname in minor_common:
+							SAVE.write(f"{line_core}\ttype2_overlap\n")
+						else:	
+							SAVE.write(f"{line_core}\tnone\n")
+				
+
+#				h1tg000009l 1415969 12050607
+#				
+#	print(RM_set)
+
+
+
+	return temp_bed_out, Total_busco_dict
+
+					
+
+def build_parser():
+	usage_text = (
+		"Usage: rmdup_main -sm {sorted.paf} -sb {sorted_full_busco.tsv} -sfai {sorted.fai} -p {prefix}\n\n"
+		"Option:\n"
+		" -sm, --sorted-paf FILE          simplified paf from rmdup_prepare (*.sorted.paf)\n"
+		" -sb, --sorted-busco FILE        sorted busco table from rmdup_prepare (*_sorted_full_busco.tsv)\n"
+		" -sfai, --sorted-fai FILE        sorted fai (sorted_*.fai)\n"
+		" -t1, --type1 INT        type1 coverage cutoff [default: 70]\n"
+		" -t2, --type2 INT        type2 coverage cutoff [default: 50]\n"
+		" -t0, --type0 INT        type0 coverage cutoff [default: 50]\n"
+		" -r, --repeat INT        repeat/noBUSCO overlap cutoff [default: 50]\n"
+		" -p, --prefix STR        output prefix [default: rm_dup]\n"
+		" -v, --version           show version\n"
+		" -h, --help              This message\n"
+	)
+	
+	parser = argparse.ArgumentParser(
+		prog="rmdup_main",
+		add_help=False,
+		formatter_class=argparse.RawTextHelpFormatter,
+		usage=usage_text
+	)
+
+	parser.add_argument("-sm", "--sorted-paf", required=False)
+	parser.add_argument("-sb", "--sorted-busco", required=False)
+	parser.add_argument("-sfai", "--sorted-fai", required=False)
+	parser.add_argument("-t1", "--type1", type=int, default=70)
+	parser.add_argument("-t2", "--type2", type=int, default=50)
+	parser.add_argument("-t0", "--type0", type=int, default=50)
+	parser.add_argument("-r", "--repeat", type=int, default=50)
+	parser.add_argument("-p", "--prefix", default="rm_dup")
+	parser.add_argument("-v", "--version", action="store_true")
+	parser.add_argument("-h", "--help", action="store_true")
+
+	return parser
+
+
+def main():
+	parser = build_parser()
+	args = parser.parse_args()
+
+	if args.help or len(sys.argv) == 1:
+		print(parser.usage)
+		sys.exit(0)
+
+	if args.version:
+		print(f"rmdup_main v{__version__}")
+		sys.exit(0)
+
+	if not args.sorted_paf or not args.sorted_busco or not args.sorted_fai:
+		print("[ERROR] missing required arguments.\n")
+		print(parser.usage)
+		sys.exit(1)
+
+	print("[rmdup_main] Step1: parse paf -> TYPE1/TYPE2/EQUAL")
+	haplo_result, overlap_result, equal_result = minimap2_result(args.sorted_paf, args.type0,  args.type1, args.type2)
+
+	print("[rmdup_main] Step2: BUSCO-based decision + temp.bed_out")
+	temp_bed_out, busco_dict= busco_result(
+		args.sorted_busco, haplo_result, overlap_result, equal_result, args.repeat, args.sorted_fai, args.prefix
+	)
+
+	print("[rmdup_main] Step3: noBUSCO contig trimming bed")
+
+	print("\nDone.")
+	print("Outputs:")
+	print(f"  - {temp_bed_out}")
+
+
+if __name__ == "__main__":
+	main()
+
+
+

@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+
+import os, sys, glob
+import gzip, argparse
+
+__version__ = "1.0"
+
+	
+def samtoolsfai_sorting(fai):
+	contig_length_list = []
+	fai_base = os.path.basename(fai)	
+
+	result = f"sorted_{fai_base}"
+	cmd = f"sort -k2,2nr {fai} > {result}"
+	os.system(cmd)
+	
+	with open(result,"r") as lines:
+		for line in lines:
+			temp = line.split("\t")
+			contig = temp[0]
+			contig_length_list.append(contig)
+
+	return contig_length_list
+
+
+
+def make_busco_table(full_table, fai, prefix):
+#	temp_result1 = "temp_full_busco.tsv"
+#	temp_result2 = "sorted_temp_full_busco.tsv"
+	temp_result1 = f"{prefix}.temp_full_busco.tsv"
+	temp_result2 = f"{prefix}.sorted_temp_full_busco.tsv"
+
+
+	temp_SAVE1 = open(temp_result1,"w")
+
+	with open(full_table,"r") as lines:
+		for line in lines:
+			if line.startswith("#"):
+				continue
+			else:
+				temp = line.replace("\n","").split("\t")
+				if temp[1] == "Missing":
+					continue
+				else:
+	
+					Gbusco = temp[0]
+					Type = temp[1]
+					Contig = temp[2]
+					temp_start = int(temp[3])
+					temp_end = int(temp[4])
+					strand = temp[5]
+
+					if strand == "-":
+						start = temp_end
+						end = temp_start
+						new = f"{Contig}\t{Gbusco}\t{start}\t{end}\t{Type}\n"	
+						temp_SAVE1.write(new)
+					else:
+						start = temp_start
+						end = temp_end
+						new = f"{Contig}\t{Gbusco}\t{start}\t{end}\t{Type}\n"
+						temp_SAVE1.write(new)
+
+	temp_SAVE1.close()
+
+
+	cmd2 = f"sort -k3,3n {temp_result1} > {temp_result2}"
+	os.system(cmd2)
+
+
+	RESULT = f"{prefix}_sorted_full_busco.tsv"
+	SAVE = open(RESULT,"w")
+
+
+	contig_to_lines = {}
+	with open(temp_result2,"r") as lines:
+		for line in lines:
+			temp = line.rstrip("\n").split("\t")
+
+			Contig = temp[0]
+			if Contig not in contig_to_lines:
+				contig_to_lines[Contig] = []
+			contig_to_lines[Contig].append(line)
+
+	for sorted_contig in fai:
+		if sorted_contig in contig_to_lines:
+			for line in contig_to_lines[sorted_contig]:
+				SAVE.write(line)
+
+	SAVE.close()
+
+
+
+	
+
+#	for sorted_contig in fai:
+#		with open(temp_result2,"r") as lines:
+#			for line in lines:
+#				temp = line.replace("\n","").split("\t")
+#				Contig = temp[0]
+#				Gbusco = temp[1]
+#				start = int(temp[2])
+#				end = int(temp[3])
+#				Type = temp[4]
+
+
+#				if Contig == sorted_contig:
+#					new = f"{Contig}\t{Gbusco}\t{start}\t{end}\t{Type}\n"
+#					SAVE.write(new)
+						
+			
+					
+	cmd3=f"rm -f {temp_result1}"
+	cmd4=f"rm -f {temp_result2}"
+	os.system(cmd3)
+	os.system(cmd4)
+
+	return RESULT
+
+def cal_coverage(paf, fai, prefix):
+	dictionary = {}
+	with gzip.open(paf,"rt") as lines:
+		for line in lines:
+			temp = line.replace("\n","").split("\t")
+			qname = temp[0]
+			qlen = int(temp[1])
+			qstart = int(temp[2])
+			qend = int(temp[3])
+			strand = temp[4]
+
+			sname = temp[5]
+			slen = int(temp[6])
+			sstart = int(temp[7])
+			send = int(temp[8])
+
+			matchbp = int(temp[9])
+			matchTotalbp = int(temp[10])
+			matchquality = int(temp[11])
+
+			key = "_".join(sorted([qname,sname]))
+#			key = qname + "_" + sname
+		
+			qcov =round(matchbp/qlen*100,2)
+			scov =round(matchbp/slen*100,2)
+
+
+			if qcov < scov:
+				pseudo_duplicate = sname
+			elif qcov > scov:
+				pseudo_duplicate = qname
+			else:
+				pseudo_duplicate = "equal"
+
+			new_line = f"{qname}\t{qstart}\t{qend}\t{sname}\t{sstart}\t{send}\t{qcov}\t{scov}\t{pseudo_duplicate}\n"
+
+
+			if qname == sname:
+				continue
+			elif key not in dictionary:
+				dictionary[key] = (matchbp,new_line)
+
+			elif key in dictionary.keys():
+				if dictionary[key][0] < matchbp:
+					dictionary[key] = (matchbp,new_line)
+				elif dictionary[key][0] > matchbp:
+					pass
+				else:
+					pass
+		
+
+		new_paf = f"{prefix}.sorted.paf"
+		with open(new_paf,"w") as SAVE:
+
+#			for sorted_contig in fai:
+#				for best_matchbp, line_out in dictionary.values():
+#					temp = line_out.split("\t")
+#					qname = temp[0]
+#					sname = temp[3]
+#					if qname == sorted_contig:
+#						SAVE.write(line_out)
+
+			
+			qname_to_lines = {}
+			for best_matchbp, line_out in dictionary.values():
+				qname = line_out.split("\t")[0]
+				if qname not in qname_to_lines:
+					qname_to_lines[qname] = []
+				qname_to_lines[qname].append(line_out)
+
+			for sorted_contig in fai:
+				if sorted_contig in qname_to_lines:
+					for line_out in qname_to_lines[sorted_contig]:
+						SAVE.write(line_out)
+
+	return new_paf
+
+def build_parser():
+	usage_text = (
+	"Usage: rmdup_prepare -fai {index file} -b {full_table.tsv} -m {selfalign.paf.gz} -p {output prefix}\n\n"
+	"Option:\n"
+	" -fai, --fai FILE       genome index file.\n"
+	" -b, --busco FILE       full_table.tsv from busco result.\n"
+	" -m, --mapping FILE     gzip paf file from minimap2 result.\n"
+	" -p, --prefix STR       output prefix [default: rm_dup].\n"
+	" -v, --version          show version.\n"
+	" -h, --help             This message.\n"
+	)
+
+	parser = argparse.ArgumentParser(
+		prog="rmdup_prepare",
+		add_help=False,
+		formatter_class=argparse.RawTextHelpFormatter,
+		usage=usage_text
+	)
+
+	parser.add_argument("-fai", "--fai", required=False)
+	parser.add_argument("-b", "--busco", required=False)
+	parser.add_argument("-m", "--mapping", required=False)
+	parser.add_argument("-p", "--prefix", default="rm_dup")
+	parser.add_argument("-v", "--version", action="store_true")
+	parser.add_argument("-h", "--help", action="store_true")
+
+	return parser
+
+
+def main():
+	parser = build_parser()
+	args = parser.parse_args()
+
+	if args.help or len(sys.argv) == 1:
+		print(parser.usage)
+		sys.exit(0)
+	if args.version:
+		print(f"rmdup_prepare v{__version__}")
+		sys.exit(0)
+
+	if not args.fai or not args.busco or not args.mapping:
+		print("[ERROR] missing required arguments.\n")
+		print(parser.usage)
+		sys.exit(1)
+
+	prefix = args.prefix
+
+	fai_base = os.path.basename(args.fai)
+	fai_order = samtoolsfai_sorting(args.fai)
+	print(f"[rmdup_prepare] sorted fai created: sorted_{fai_base}")
+
+	busco_out = make_busco_table(args.busco, fai_order, prefix)
+	print(f"[rmdup_prepare] busco table created: {busco_out}")
+
+	paf_out = cal_coverage(args.mapping, fai_order, prefix)
+	print(f"[rmdup_prepare] paf table created: {paf_out}")
+
+	print("\nDone.")
+	print("Outputs:")
+	print(f"  - sorted_{fai_base}")
+	print(f"  - {busco_out}")
+	print(f"  - {paf_out}")
+
+
+if __name__ == "__main__":
+	main()
+	
+
+
+
+###input data
+#genomeindex = "sample2.asm.bp.hap2.p_ctg.gfa.fa.fai"
+#busco ="full_table.tsv"
+#minimap2="sample2.asm.bp.hap2.p_ctg.gfa.fa.paf.gz"
+
+#result1 = samtoolsfai_sorting(genomeindex)
+#make_busco_table(busco,result1)
+#cal_coverage(minimap2,result1)
+

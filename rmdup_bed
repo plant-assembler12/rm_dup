@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+
+import os, sys
+import argparse
+import pandas as pd
+
+__version__ = "1.0"
+
+
+def make_bed(infile, outfile):
+	cols = ["contig", "id", "start", "end", "type", "status"]
+	df = pd.read_csv(infile, sep="\t", header=None, names=cols)
+
+	#
+	df["start"] = pd.to_numeric(df["start"], errors="coerce")
+	df["end"]   = pd.to_numeric(df["end"],   errors="coerce")
+	df = df.dropna(subset=["contig", "start", "end", "status"]).copy()
+	df["start"] = df["start"].astype(int)
+	df["end"]   = df["end"].astype(int)
+
+	# 
+	df = df.reset_index(drop=True)
+
+	# (1) cut statuss: keep (cut1~cut5)
+	cut1 = df[df["status"] == "type0_minimap2"][["contig", "start", "end", "status"]].copy()
+	cut2 = df[df["status"] == "type1_minimap2"][["contig", "start", "end", "status"]].copy()
+	cut3 = df[df["status"] == "type2_minimap2"][["contig", "start", "end", "status"]].copy()
+
+	cut4 = df[df["status"] == "type0_issubset"][["contig", "start", "end", "status"]].copy()
+	cut5 = df[df["status"] == "type1_issubset"][["contig", "start", "end", "status"]].copy()
+	cut6 = df[df["status"] == "type2_issubset"][["contig", "start", "end", "status"]].copy()
+	
+	cut7 = df[df["status"] == "type0_repeat"][["contig", "start", "end", "status"]].copy()
+	cut8 = df[df["status"] == "type1_repeat"][["contig", "start", "end", "status"]].copy()
+	cut9 = df[df["status"] == "type2_repeat"][["contig", "start", "end", "status"]].copy()
+
+	# (2) make run_id
+	df["run_id"] = (
+		(df["contig"] != df["contig"].shift()) |
+		(df["status"]   != df["status"].shift())
+	).cumsum()
+
+	# (3) merging overlap/haplotig by run_id unit
+	run_df = df[df["status"].isin(["type2_overlap", "type1_haplotig"])].copy()
+
+	merged = (
+		run_df
+		.groupby(["contig", "status", "run_id"], as_index=False)
+		.agg(start=("start", "min"),
+		     end=("end", "max"))
+	)[["contig", "start", "end", "status"]]
+
+	# (4) combine (merged + cut1~cut9)
+	bed = pd.concat([merged, cut1, cut2, cut3, cut4, cut5, cut5, cut6, cut7, cut8, cut9], ignore_index=True)
+
+	# sorting
+	bed = bed.sort_values(["contig", "start"], kind="mergesort")
+
+	bed.to_csv(outfile, sep="\t", header=False, index=False)
+
+
+def build_parser():
+	usage_text = (
+		"Usage: rmdup_makebed -i temp.bed [-p prefix]\n\n"
+		"Option:\n"
+		" -i, --input FILE      input temp bed file (ex. prefix.temp.bed)\n"
+		" -p, --prefix STR      output prefix (output = {prefix}_{input_basename})\n"
+		"                      [default output: rm_sup_{input_basename}]\n"
+		" -v, --version         show version\n"
+		" -h, --help            This message\n"
+	)
+
+	parser = argparse.ArgumentParser(
+		prog="rmdup_makebed",
+		add_help=False,
+		formatter_class=argparse.RawTextHelpFormatter,
+		usage=usage_text
+	)
+
+	parser.add_argument("-i", "--input", required=False)
+	parser.add_argument("-p", "--prefix", required=False)
+	parser.add_argument("-v", "--version", action="store_true")
+	parser.add_argument("-h", "--help", action="store_true")
+
+	return parser
+
+
+def main():
+	parser = build_parser()
+	args = parser.parse_args()
+
+	if args.help or len(sys.argv) == 1:
+		print(parser.usage)
+		sys.exit(0)
+
+	if args.version:
+		print(f"rmdup_makebed v{__version__}")
+		sys.exit(0)
+
+	if not args.input:
+		print("[ERROR] missing required arguments.\n")
+		print(parser.usage)
+		sys.exit(1)
+
+	infile = args.input
+	base = os.path.basename(infile)
+
+	# output name level:
+	# 1) -o 
+	# 2) -p {prefix}_{input_basename}
+	# 3) default: rm_{input_basename}
+	if args.prefix:
+		outfile = f"{args.prefix}_{base}"
+	else:
+		outfile = f"rm_dup_{base}"
+
+	make_bed(infile, outfile)
+
+	print("\nDone.")
+	print("Outputs:")
+	print(f"  - {outfile}")
+
+
+if __name__ == "__main__":
+	main()
+

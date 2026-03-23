@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+
+import os, sys
+import argparse
+
+__version__ = "1.0"
+
+def rename_keepbed(temp_keepbed, genomeindex, prefix):
+	base = os.path.basename(temp_keepbed)
+	cmd1 = f"bedtools sort -i {temp_keepbed} > new_sorted_{base}"
+	cmd2 = f"bedtools complement -i new_sorted_{base} -g {genomeindex} > {prefix}_keep.bed"
+	cmd3 = f"rm -f new_sorted_{base}"
+#	print(cmd1)
+#	print(cmd2)
+#	print(cmd3)
+
+	os.system(cmd1)
+	os.system(cmd2)
+	os.system(cmd3)
+
+	real_keep = f"{prefix}_keep.bed"
+	rename_real_keep = f"{prefix}_rename.bed"
+	with open(real_keep,"r") as lines, open(rename_real_keep,"w") as SAVE:
+		Cname_dict = {}
+		for line in lines:
+			temp = line.replace("\n","").split("\t")
+			Cname = temp[0]
+			start = temp[1]
+			end = temp[2]
+			if Cname not in Cname_dict:
+			
+				Cname_dict[Cname] = 1
+
+				reCname =Cname + f"_{Cname_dict[Cname]}" 
+			
+				new = f"{Cname}\t{start}\t{end}\t{reCname}\n"
+				SAVE.write(new)
+
+			else:
+				Cname_dict[Cname] +=1
+
+				reCname =Cname + f"_{Cname_dict[Cname]}"
+
+				new = f"{Cname}\t{start}\t{end}\t{reCname}\n"
+				SAVE.write(new)
+	cmd4 = f"rm -f {real_keep}"
+#	print(cmd4)
+	os.system(cmd4)
+	
+	return rename_real_keep
+			
+def getseq(keepbed, genome, filterLen, prefix):
+	gbase = os.path.basename(genome)
+	cmd1 = f"bedtools getfasta -fi {genome} -bed {keepbed} -fo rm_dup_{prefix}.fa -nameOnly"
+#	print(cmd1)
+	os.system(cmd1)
+
+	cmd2 = f"seqkit seq -m {filterLen} rm_dup_{prefix}.fa > rm_dup_{prefix}_{filterLen}.fa"
+#	print(cmd2)
+	os.system(cmd2)
+	
+	
+
+def build_parser():				
+	usage_text = (
+	"Usage: rmdup_getseq -tB {temp_keepbed} -g {genome} -fai {genome_index} -l {filterLen} -p {prefix}\n\n"
+	"Option:\n"
+	" -tB, --tempBed         .temp.bed from step3_keep bed result.\n"
+	" -g, --genome	         raw genome assembly fasta.\n"
+	" -fai, --fai FILE       genome index file.\n"
+	" -l, --filterLen FILE   filter length [default: 50000].\n"
+	" -p, --prefix STR       output prefix [default: rm_dup].\n"
+	" -v, --version          show version.\n"
+	" -h, --help             This message.\n"
+	)
+
+	parser = argparse.ArgumentParser(
+		prog="rmdup_getseq",
+		add_help=False,
+		formatter_class=argparse.RawTextHelpFormatter,
+		usage=usage_text
+	)
+
+
+	parser.add_argument("-tB", "--tempBed", dest="tB", required=False)
+	parser.add_argument("-g", "--genome", dest="g", required=False)
+	parser.add_argument("-fai", "--fai", dest="fai", required=False)
+	parser.add_argument("-l", "--filterLen", dest="l", type=int, default=50000)
+	parser.add_argument("-p", "--prefix", dest="prefix", default="rm_dup")
+	parser.add_argument("-v", "--version", action="store_true")
+	parser.add_argument("-h", "--help", action="store_true")
+
+	return parser
+
+
+
+def main():
+	parser = build_parser()
+	if len(sys.argv) == 1:
+		print(parser.usage)
+		sys.exit(0)
+
+	args = parser.parse_args()
+
+	if args.version:
+		print(f"rmdup_getseq v{__version__}")
+		sys.exit(0)
+
+	if not args.tB or not args.g or not args.fai:
+		print("[ERROR] missing required arguments.\n")
+		print(parser.usage)
+		sys.exit(1)
+
+
+	prefix = args.prefix
+
+	
+	realkB = rename_keepbed(args.tB, args.fai, args.prefix)
+	getseq(realkB, args.g, args.l, args.prefix)
+	print(f"[rmdup_getseq] finished")
+
+	print("\nDone.")
+
+
+if __name__ == "__main__":
+	main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
