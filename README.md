@@ -117,8 +117,8 @@ Each record contains:
 7-8. qCoverage, sCoverage: coverage percentages  
 9. pseudo_duplicate: contig classified as pseudo-duplicate (minor) or "equal"
 
-Query coverage = (matchbp / query length) × 100  
-Subject coverage = (matchbp / subject length) × 100
+- Query coverage = (matchbp / query length) × 100  
+- Subject coverage = (matchbp / subject length) × 100
 
 ```
 #qContig qStart qEnd sContig sStart sEnd qCoverage sCoverage pseudo-duplciate_Contig 
@@ -278,9 +278,9 @@ Option:
 ```
 
 #### Output files
-rm_dup_rm_dup_50000.fa: final filtered assembly (≥ 50 kb contigs)
-rm_dup_rm_dup.fa: unfiltered assembly (before length filtering)
-rm_dup_rename.bed: mapping between original and split contigs
+- rm_dup_rm_dup_50000.fa: final filtered assembly (≥ 50 kb contigs)
+- rm_dup_rm_dup.fa: unfiltered assembly (before length filtering)
+- rm_dup_rename.bed: mapping between original and split contigs
 
 Each record represents:
 
