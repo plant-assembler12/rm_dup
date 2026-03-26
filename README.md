@@ -19,9 +19,12 @@ RMdup identifies and removes duplicated contigs from draft genome assemblies by 
 <img width="1500" height="1051" alt="image" src="https://github.com/user-attachments/assets/9b14847b-6652-456d-8ea9-4e5919b34dd6" />
 
 ## Installation
-git clone 
+After installing the required dependencies, clone the rmdup repository and make the scripts executable.
+```
+git clone https://github.com/plant-assembler12/rm_dup.git
+cd rm_dup
 chmod 777 rmdup*
-
+```
 
 ## Run
 ### Step 0. make input file
@@ -29,6 +32,7 @@ Before running rmdup, three input files are required:
 genome index file (.fai), Minimap2 self-alignment file (.paf), and BUSCO result file (full_table.tsv).
 The following commands can be used to generate these three files.
 
+#### Example command
 #### genome index file
 ```
 samtools faidx $assembly
@@ -46,7 +50,7 @@ minimap2 -xasm5 -DP -t 48 $assembly $assembly | gzip -c - > $assembly.paf.gz
 
 
 ### Step 1. Preprocessing
-In Step 0, the three prepared input files are used to run rmdup_prepare.
+In this step, the prepared input files are used to run rmdup_prepare.
 ```
 ./rmdup_prepare -fai {index file} -b {full_table.tsv} -m {selfalign.paf.gz} -p {output prefix}
 Option:
@@ -58,12 +62,12 @@ Option:
  -h, --help             This message.
 ```
 
-#### run example command
+#### Example command
 ```
 ./rmdup_prepare -fai test.fasta.fai -b full_table.tsv -m test.fasta.paf.gz
 ```
 
-#### output format
+#### Output files
 ##### sorted_test.fasta.fai
 
 ```
@@ -95,13 +99,19 @@ ptg000002l      169448at3193    16546874        16571658        Complete
 ```
 
 ##### rm_dup.sorted.paf
+Each record contains:
+1. qContig: query contig name
+2-3. qStart, qEnd: query alignment coordinates  
+4. sContig: subject contig name  
+5-6. sStart, sEnd: subject alignment coordinates  
+7-8. qCoverage, sCoverage: coverage percentages  
+9. pseudo_duplicate: contig classified as pseudo-duplicate (minor) or "equal"
 
-Query coverage =round(matchbp/query length*100,2)
-
-Subject coverage =round(matchbp/subject length*100,2)
+Query coverage = (matchbp / query length) × 100  
+Subject coverage = (matchbp / subject length) × 100
 
 ```
-#qContig qStart qEnd sContig sStart sEnd qCoverage sCoverage pseudo-duplciateContig 
+#qContig qStart qEnd sContig sStart sEnd qCoverage sCoverage pseudo-duplciate_Contig 
 ptg000002l      64423652        68723853        ptg000018l      15      4295174 5.66    68.4    ptg000018l
 ptg000002l      27573476        27980392        ptg000010l      13634105        13999609        0.08    0.15    ptg000010l
 ptg000002l      27404417        27911445        ptg000013l      18745016        19339462        0.1     0.29    ptg000013l
@@ -125,6 +135,15 @@ ptg000002l      27859520        27891898        ptg000021l      5442    27500   
 
 ### Step 2. Identify duplicated site
 
+In this step, rmdup_main identifies duplicated regions using the processed files generated in Step 1.
+The input files include:
+- sorted PAF file (*.sorted.paf)
+- sorted BUSCO table (*_sorted_full_busco.tsv)
+- sorted FASTA index (sorted_*.fai)
+
+Users can adjust coverage thresholds to control the level of duplicate removal. If duplicated contigs are insufficiently removed or over-removed, these parameters can be tuned accordingly.
+
+
 ```
 ./rmdup_main -sm {sorted.paf} -sb {sorted_full_busco.tsv} -sfai {sorted.fai} -p {prefix}
 
@@ -143,29 +162,38 @@ Option:
 
 ```
 
-### run command
+###  Example command
 ```
 ./rmdup_mainV4 -sm ../1.rmdup_prepare/*.sorted.paf -sb ../1.rmdup_prepare/*_sorted_full_busco.tsv -sfai ../1.rmdup_prepare/sorted*.fai -p sample2 -t2 10 -r 30
 ```
 
-#### output 
+#### Output files 
 rm_dup.temp.bed
-busco based: haplotig, overlap, unique, issubset, repeat
-minimap2 based: minimap2
 
-type1_haplotig
-type1_issubset
-type1_minimap2
-type1_repeat
-type1_unique
-type2_issubset
-type2_minimap2
-type2_overlap
-type2_repeat
-type2_unique
+Each record contains:
+1. Contig ID
+2. BUSCO gene ID (or NA)
+3-4. Genomic coordinates (start, end)
+5. Structural type (Type0, Type1, Type2)
+6. Classification and removal method
 
+Classification and removal method include:
+BUSCO-based: haplotig, overlap, unique, issubset, repeat
+Alignment-based: minimap2
+
+Category definitions (Column 6):
+type1_haplotig: duplicated haplotypic region
+type1_issubset: minor contig BUSCO set is a subset of major contig
+type1_repeat: repeat-derived region (no BUSCO support)
+type1_unique: unique BUSCO-supported region
+type2_overlap: partially overlapping duplicated region
+type2_issubset: subset BUSCO relationship
+type2_repeat: repeat-derived region
+type2_unique: unique region
+minimap2: duplication identified based on alignment only
 
 ```
+Contig_ID BUSCO_gene_ID start end Structural_type method
 ptg000294l      temp    0       36320   type1   type1_repeat
 ptg000086l      temp    0       34388   type1   type1_repeat
 ptg000272l      temp    0       41406   type1   type1_repeat
@@ -190,12 +218,12 @@ Option:
 
 ```
 
-#### run command
+#### Example command
 ```
 ./rmdup_bedV4 -i ../2.rmdup_main/rm_dup.temp.bed
 ```
 
-#### output
+#### Output files
 rm_dup_rm_dup.temp.bed
 type1_haplotig
 type1_issubset
@@ -234,12 +262,12 @@ Option:
  -h, --help             This message.
 ```
 
-#### run command
+#### Example command
 ```
 ./rmdup_getseq -tB ../3.rmdup_keepbed/rm_dup_rm_dup.temp.bed -g ../1.rmdup_prepare/filtered.fasta -fai ../1.rmdup_prepare/filtered.fasta.fai
 ```
 
-#### output
+#### Output files
 
 -rw-rw-r-- 1 ahchoi123 ahchoi123 432M Mar 23 20:50 rm_dup_rm_dup_50000.fa
 -rw-rw-r-- 1 ahchoi123 ahchoi123 427M Mar 23 20:50 rm_dup_rm_dup.fa
@@ -259,24 +287,16 @@ ptg000013l      0       9       ptg000013l_1
 ```
 
 
-
-
-
-
-
-
-## Input
+### Summary
+#### Input
 - PAF (minimap2)
 - BUSCO full_table.tsv
 - genome.fai
 
-## Output
+#### Output
 - BED file of duplicated regions
-- filtered assembly
+- filtered assembly.fasta
 
-## Example
-cd example
-bash run.sh
 
-## Citation
-(논문 넣기)
+### Citation
+submission (260327)
