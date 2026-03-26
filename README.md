@@ -186,19 +186,19 @@ Each record contains:
 6. Classification label
 
 Classification label include:
-BUSCO-based: haplotig, overlap, unique, issubset, repeat
-Alignment-based: minimap2
+- BUSCO-based: haplotig, overlap, unique, issubset, repeat
+- Alignment-based: minimap2
 
 Category definitions (Column 6):
-type1_haplotig: duplicated haplotypic region
-type1_issubset: minor contig BUSCO set is a subset of major contig
-type1_repeat: repeat-derived region (no BUSCO support)
-type1_unique: unique BUSCO-supported region
-type2_overlap: partially overlapping duplicated region
-type2_issubset: subset BUSCO relationship
-type2_repeat: repeat-derived region
-type2_unique: unique region
-minimap2: duplication identified based on alignment only
+- type1_haplotig: duplicated haplotypic region
+- type1_issubset: minor contig BUSCO set is a subset of major contig
+- type1_repeat: repeat-derived region (no BUSCO support)
+- type1_unique: unique BUSCO-supported region
+- type2_overlap: partially overlapping duplicated region
+- type2_issubset: subset BUSCO relationship
+- type2_repeat: repeat-derived region
+- type2_unique: unique region
+- minimap2: duplication identified based on alignment only
 
 ```
 Contig_ID BUSCO_gene_ID start end Structural_type method
