@@ -19,7 +19,7 @@ RMdup identifies and removes duplicated contigs from draft genome assemblies by 
 <img width="1500" height="1051" alt="image" src="https://github.com/user-attachments/assets/9b14847b-6652-456d-8ea9-4e5919b34dd6" />
 
 ## Installation
-git clone ???
+git clone 
 chmod 777 rmdup*
 
 
