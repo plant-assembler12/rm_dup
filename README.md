@@ -69,9 +69,14 @@ Option:
 
 #### Output files
 ##### sorted_test.fasta.fai
-
+Each record contains:
+1. Contig ID
+2. Length
+3. OFFSET
+4. LINEBASES
+5. LINEWIDTH
 ```
-#Contig length OFFSET LINEBASES LINEWIDTH 
+#Contig Length OFFSET LINEBASES LINEWIDTH 
 ptg000002l      70232259        54520495        60      61
 ptg000011l      64666834        409237564       60      61
 ptg000006l      59361535        241215658       60      61
@@ -82,9 +87,14 @@ ptg000005l      40121122        200425838       60      61
 
 ```
 ##### rm_dup_sorted_full_busco.tsv
-
+Each record contains:
+1. Contig ID
+2. Busco gene ID
+3. Start
+4. End
+5. Busco_type
 ```
-#Contig Busco_gene_name Start End Busco_type
+#Contig_ID Busco_gene_ID Start End Busco_type
 ptg000002l      56324at3193     1621864 1628371 Duplicated
 ptg000002l      29166at3193     2632932 2635358 Duplicated
 ptg000002l      195796at3193    3009596 3010207 Complete
@@ -143,7 +153,6 @@ The input files include:
 
 Users can adjust coverage thresholds to control the level of duplicate removal. If duplicated contigs are insufficiently removed or over-removed, these parameters can be tuned accordingly.
 
-
 ```
 ./rmdup_main -sm {sorted.paf} -sb {sorted_full_busco.tsv} -sfai {sorted.fai} -p {prefix}
 
@@ -159,12 +168,11 @@ Option:
  -v, --version           show version
  -h, --help              This message
 
-
 ```
 
 ###  Example command
 ```
-./rmdup_mainV4 -sm ../1.rmdup_prepare/*.sorted.paf -sb ../1.rmdup_prepare/*_sorted_full_busco.tsv -sfai ../1.rmdup_prepare/sorted*.fai -p sample2 -t2 10 -r 30
+./rmdup_main -sm ../1.rmdup_prepare/*.sorted.paf -sb ../1.rmdup_prepare/*_sorted_full_busco.tsv -sfai ../1.rmdup_prepare/sorted*.fai -p sample2 -t2 10 -r 30
 ```
 
 #### Output files 
@@ -248,6 +256,8 @@ ptg000009l      0       9416874 type1_issubset
 
 
 ### Step 4 Extract final contig
+In this step, rmdup_getseq extracts the final filtered genome assembly based on the retained regions identified in Step 3.
+The input is the retained BED file from Step 3. Using this information, rmdup reconstructs the final contigs by removing duplicated regions and retaining only selected intervals. Short contigs below a specified length threshold (default: 50 kb) are filtered out.
 
 ```
 rmdup_getseq -tB {temp_keepbed} -g {genome} -fai {genome_index} -l {filterLen} -p {prefix}
@@ -268,12 +278,18 @@ Option:
 ```
 
 #### Output files
+rm_dup_rm_dup_50000.fa: final filtered assembly (≥ 50 kb contigs)
+rm_dup_rm_dup.fa: unfiltered assembly (before length filtering)
+rm_dup_rename.bed: mapping between original and split contigs
 
--rw-rw-r-- 1 ahchoi123 ahchoi123 432M Mar 23 20:50 rm_dup_rm_dup_50000.fa
--rw-rw-r-- 1 ahchoi123 ahchoi123 427M Mar 23 20:50 rm_dup_rm_dup.fa
--rw-rw-r-- 1 ahchoi123 ahchoi123 2.8K Mar 23 20:49 rm_dup_rename.bed
+Each record represents:
 
+1. original contig ID
+2. start coordinate
+3. end coordinate
+4. renamed contig ID
 ```
+contig_ID start end renamed_contigID
 ptg000002l      0       70232259        ptg000002l_1
 ptg000004l      0       53872932        ptg000004l_1
 ptg000005l      0       40121122        ptg000005l_1
