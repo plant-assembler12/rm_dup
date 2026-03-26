@@ -175,9 +175,9 @@ Each record contains:
 2. BUSCO gene ID (or NA)
 3-4. Genomic coordinates (start, end)
 5. Structural type (Type0, Type1, Type2)
-6. Classification and removal method
+6. Classification label
 
-Classification and removal method include:
+Classification label include:
 BUSCO-based: haplotig, overlap, unique, issubset, repeat
 Alignment-based: minimap2
 
@@ -205,6 +205,8 @@ ptg000008l      216839at3193    107555  162673  type1   type1_unique
 
 
 ### Step 3. Identify keep site
+In this step, rmdup_makebed generates BED files describing regions to retain after removing duplicated intervals identified in Step 2.
+The input is the BED file produced by rmdup_main (e.g., rm_dup.temp.bed). Based on the classification of duplicated regions, this step determines which genomic regions should be retained in the final assembly.
 
 ```
 rmdup_makebed -i temp.bed [-p prefix]
@@ -220,19 +222,17 @@ Option:
 
 #### Example command
 ```
-./rmdup_bedV4 -i ../2.rmdup_main/rm_dup.temp.bed
+./rmdup_bed -i ../2.rmdup_main/rm_dup.temp.bed
 ```
 
 #### Output files
 rm_dup_rm_dup.temp.bed
-type1_haplotig
-type1_issubset
-type1_minimap2
-type1_repeat
-type2_issubset
-type2_minimap2
-type2_overlap
-type2_repeat
+
+Each record contains:
+1. Contig ID
+2. Start coordinate
+3. End coordinate
+4. Classification label
 
 ```
 ptg000001l      0       53626692        type2_issubset
